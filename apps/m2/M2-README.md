@@ -29,3 +29,20 @@ war-and-peace.html (about 4 MB), best of 3 runs with /usr/bin/time -l, output se
 | task 4 | 0.31 s, 67 MB | 0.19 s, 44 MB |
 
 Tasks 2 and 4 were 35-40% faster and used about a third less memory. Task 3 did not change. The strainer still reads and parses the whole file; it only saves building tree objects for the parts I don't need.
+
+## Part 2: Where the API functions are defined
+
+Line numbers are from the original source code (the first commit in this repo).
+
+| API | Defined at |
+|---|---|
+| `BeautifulSoup(...)` | `bs4/__init__.py:209` |
+| `SoupStrainer(...)` | `bs4/filter.py:345` |
+| `find_all()` | `bs4/element.py:2715` |
+| `find()` | `bs4/element.py:2684` |
+| `find_parent()` | `bs4/element.py:992` |
+| `prettify()` | `bs4/element.py:2601` |
+| `get_text()` | `bs4/element.py:524` |
+| `tag["class"] = ...` | `bs4/element.py:2223` (`Tag.__setitem__`) |
+| `tag.name = ...` | `bs4/element.py:1740` (plain attribute, no setter) |
+| `print(tag)` | `bs4/element.py:2302` (`Tag.__str__`) |
