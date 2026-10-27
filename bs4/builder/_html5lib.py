@@ -123,6 +123,11 @@ class HTML5TreeBuilder(HTMLTreeBuilder):
                 "You provided a value for parse_only, but the html5lib tree builder doesn't support parse_only. The entire document will be parsed.",
                 stacklevel=4,
             )
+        if self.soup is not None and self.soup.replacer is not None:
+            warnings.warn(
+                "You provided a value for replacer, but the html5lib tree builder doesn't support replacer. No tags will be replaced.",
+                stacklevel=4,
+            )
 
         # self.underlying_builder is probably None now, but it'll be set
         # when html5lib calls self.create_treebuilder().
