@@ -41,3 +41,20 @@ class TestSoupReplacer(SoupTest):
         assert quote.contents == ["x"]
         assert quote.next_sibling == "y"
         assert quote.parent.name == "p"
+
+    @pytest.mark.parametrize("features", PARSERS)
+    def test_sets_attributes_during_parsing(self, features):
+        # attrs are added to every matching tag, replacing any value
+        # the document already had. Other tags are left alone.
+        replacer = SoupReplacer("p", "p", attrs={"class": "test"})
+        soup = BeautifulSoup(
+            '<div><p class="old intro">a</p><p>b</p><span>c</span></div>',
+            features,
+            replacer=replacer,
+        )
+        paragraphs = soup.find_all("p")
+        assert [p.get_attribute_list("class") for p in paragraphs] == [
+            ["test"],
+            ["test"],
+        ]
+        assert soup.span.attrs == {}

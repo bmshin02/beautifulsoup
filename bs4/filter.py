@@ -686,10 +686,14 @@ class SoupReplacer(object):
 
     og_tag: str
     alt_tag: str
+    attrs: Dict[str, str]
 
-    def __init__(self, og_tag: str, alt_tag: str):
+    def __init__(
+        self, og_tag: str, alt_tag: str, attrs: Optional[Dict[str, str]] = None
+    ):
         self.og_tag = og_tag
         self.alt_tag = alt_tag
+        self.attrs = dict(attrs or {})
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} {self.og_tag} -> {self.alt_tag}>"
@@ -698,3 +702,12 @@ class SoupReplacer(object):
         if name == self.og_tag:
             return self.alt_tag
         return name
+
+    def replace_attrs(
+        self, name: str, attrs: _RawAttributeValues
+    ) -> _RawAttributeValues:
+        if name == self.og_tag and self.attrs:
+            new_attrs = dict(attrs)
+            new_attrs.update(self.attrs)
+            return new_attrs
+        return attrs

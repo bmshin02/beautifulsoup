@@ -260,9 +260,9 @@ class BeautifulSoup(Tag):
          to modify default behavior.
 
         :param replacer: A SoupReplacer. Every tag it matches will be
-         created under the replacement name while the document is
-         parsed, so there's no need to search the tree and rename
-         those tags afterwards.
+         created under the replacement name, with the replacement
+         attributes, while the document is parsed, so there's no need
+         to search the tree and change those tags afterwards.
 
         :param kwargs: For backwards compatibility purposes, the
          constructor accepts certain keyword arguments used in
@@ -1036,8 +1036,10 @@ class BeautifulSoup(Tag):
             return None
 
         # The SoupStrainer above sees the name used in the document;
-        # the Tag is created with the replacement name, if any.
+        # the Tag is created with the replacement name and attributes,
+        # if any.
         if self.replacer is not None:
+            attrs = self.replacer.replace_attrs(name, attrs)
             name = self.replacer.replace(name)
 
         tag_class = self.element_classes.get(Tag, Tag)

@@ -56,15 +56,23 @@ b_to_blockquote = SoupReplacer("b", "blockquote")
 soup = BeautifulSoup(html_doc, "html.parser", replacer=b_to_blockquote)
 ```
 
+Task 7 changes attributes instead of tag names, so I added an optional `attrs` argument. The two-argument constructor works the same as before. With `attrs`, every `og_tag` tag gets those attributes, and they replace any value the tag already had:
+
+```python
+p_class_test = SoupReplacer("p", "p", attrs={"class": "test"})
+soup = BeautifulSoup(html_doc, "html.parser", replacer=p_class_test)
+```
+
 What I changed (line numbers are after my changes):
 
 | File | Change |
 |---|---|
 | `bs4/filter.py:685` | New `SoupReplacer` class. `replace(name)` returns `alt_tag` if `name` is `og_tag`, otherwise `name`. |
+| `bs4/filter.py:706` | `replace_attrs(name, attrs)` returns a copy of `attrs` updated with the replacer's `attrs` if `name` is `og_tag`, otherwise `attrs` unchanged. |
 | `bs4/__init__.py:94`, `:36` | Import and export it, so `from bs4 import SoupReplacer` works. |
 | `bs4/__init__.py:221`, `:447` | New `replacer=None` argument for the constructor, stored as `self.replacer`. I put it last so existing calls that pass arguments by position still work. |
-| `bs4/__init__.py:1040` | In `handle_starttag`, the tag is created with the replaced name. This happens after the SoupStrainer check, so a strainer still matches the name in the file. |
-| `bs4/__init__.py:1080` | In `handle_endtag`, the end tag is replaced too. Without this, `</b>` can't find the open `<blockquote>`, and everything after it ends up inside it. |
+| `bs4/__init__.py:1041` | In `handle_starttag`, the tag is created with the replaced name and attributes. This happens after the SoupStrainer check, so a strainer still matches the name and attributes in the file. |
+| `bs4/__init__.py:1082` | In `handle_endtag`, the end tag is replaced too. Without this, `</b>` can't find the open `<blockquote>`, and everything after it ends up inside it. |
 | `bs4/builder/_html5lib.py:126` | html5lib doesn't call `handle_starttag`, so it warns that replacer isn't supported, the same way it already does for `parse_only`. |
 
 html.parser, lxml, and xml all go through `handle_starttag` and `handle_endtag`, so the change works for all three.
@@ -72,6 +80,7 @@ html.parser, lxml, and xml all go through `handle_starttag` and `handle_endtag`,
 **Tests** (`bs4/tests/test_soupreplacer.py`), each run with html.parser, lxml, and xml:
 1. `test_replaces_tags_during_parsing`: every `<b>` becomes a `<blockquote>` and keeps its attributes and text.
 2. `test_end_tag_closes_replaced_tag`: in `<p><b>x</b>y</p>`, the `y` stays outside the blockquote.
+3. `test_sets_attributes_during_parsing`: every `<p>` gets `class="test"`, replacing its old classes, and other tags are left alone.
 
 ```bash
 pytest bs4/tests/test_soupreplacer.py
@@ -86,3 +95,11 @@ python apps/m2/task6.py test-inputs/war-and-peace.html --output war-and-peace-bl
 ```
 
 The output files are exactly the same as Milestone 1 on all 10 of my test files. On war-and-peace.html it took about the same time (0.37 s vs 0.38 s), because the loop it removes is small next to parsing.
+
+**task7.py** does task 7 from Milestone 1 with SoupReplacer, so the loop that set `tag["class"]` on each `<p>` is gone:
+
+```bash
+python apps/m2/task7.py test-inputs/python-index.html --output python-index-test-class.html
+```
+
+The output files are exactly the same as Milestone 1 on all 10 of my test files. On war-and-peace.html it took the same time (0.41 s for both).
