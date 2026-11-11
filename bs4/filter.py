@@ -683,31 +683,103 @@ class SoupStrainer(ElementFilter):
 
 
 class SoupReplacer(object):
+    """Transforms tags while the document is being parsed.
 
-    og_tag: str
-    alt_tag: str
-    attrs: Dict[str, str]
+    There are two ways to make one. The Milestone-2 form gives a pair
+    of tag names, plus optional attributes to set on the renamed tags::
+
+        SoupReplacer("b", "blockquote")
+        SoupReplacer("p", "p", attrs={"class": "test"})
+
+    The Milestone-3 form takes transformer functions. Each one is
+    called with a `Tag` from the tree::
+
+        SoupReplacer(name_xformer=lambda tag: "blockquote" if tag.name == "b" else tag.name)
+
+    :param name_xformer: Returns the new name for the tag.
+    :param attrs_xformer: Returns the new attribute dictionary for the tag.
+    :param xformer: Changes the tag however it likes. Its return value
+        is ignored.
+
+    The pair form is turned into a name_xformer (and an attrs_xformer,
+    if attrs is given), so both forms go through the same code.
+
+    Each tag is transformed once, when the parser closes it. By then
+    the tag's children have all been parsed, and the end tag has
+    already been matched against the tag's original name.
+    """
+
+    name_xformer: Optional[Callable[[Tag], str]]
+    attrs_xformer: Optional[Callable[[Tag], Dict[str, _AttributeValue]]]
+    xformer: Optional[Callable[[Tag], None]]
 
     def __init__(
-        self, og_tag: str, alt_tag: str, attrs: Optional[Dict[str, str]] = None
+        self,
+        og_tag: Optional[str] = None,
+        alt_tag: Optional[str] = None,
+        attrs: Optional[Dict[str, str]] = None,
+        *,
+        name_xformer: Optional[Callable[[Tag], str]] = None,
+        attrs_xformer: Optional[Callable[[Tag], Dict[str, _AttributeValue]]] = None,
+        xformer: Optional[Callable[[Tag], None]] = None,
     ):
-        self.og_tag = og_tag
-        self.alt_tag = alt_tag
-        self.attrs = dict(attrs or {})
+        if (og_tag is None) != (alt_tag is None):
+            raise ValueError("og_tag and alt_tag must be given together.")
+        if og_tag is not None and (name_xformer or attrs_xformer):
+            raise ValueError(
+                "Give either og_tag/alt_tag or name_xformer/attrs_xformer, not both."
+            )
+        for arg_name, func in (
+            ("name_xformer", name_xformer),
+            ("attrs_xformer", attrs_xformer),
+            ("xformer", xformer),
+        ):
+            if func is not None and not callable(func):
+                raise TypeError(f"{arg_name} must be a function.")
+
+        if og_tag is not None:
+            name_xformer = self._pair_name_xformer(og_tag, alt_tag)
+            if attrs:
+                attrs_xformer = self._pair_attrs_xformer(og_tag, dict(attrs))
+
+        self.name_xformer = name_xformer
+        self.attrs_xformer = attrs_xformer
+        self.xformer = xformer
+        self._description = f"{og_tag} -> {alt_tag}" if og_tag is not None else None
+
+    @staticmethod
+    def _pair_name_xformer(og_tag: str, alt_tag: str) -> Callable[[Tag], str]:
+        return lambda tag: alt_tag if tag.name == og_tag else tag.name
+
+    @staticmethod
+    def _pair_attrs_xformer(
+        og_tag: str, attrs: Dict[str, str]
+    ) -> Callable[[Tag], Dict[str, _AttributeValue]]:
+        # The new values replace any value the tag already had.
+        return lambda tag: {**tag.attrs, **attrs} if tag.name == og_tag else tag.attrs
 
     def __repr__(self) -> str:
-        return f"<{self.__class__.__name__} {self.og_tag} -> {self.alt_tag}>"
+        if self._description is not None:
+            return f"<{self.__class__.__name__} {self._description}>"
+        given = [
+            name
+            for name in ("name_xformer", "attrs_xformer", "xformer")
+            if getattr(self, name) is not None
+        ]
+        return f"<{self.__class__.__name__} {', '.join(given)}>"
 
-    def replace(self, name: str) -> str:
-        if name == self.og_tag:
-            return self.alt_tag
-        return name
+    def transform(self, tag: Tag) -> None:
+        """Apply the transformers to a tag that was just closed.
 
-    def replace_attrs(
-        self, name: str, attrs: _RawAttributeValues
-    ) -> _RawAttributeValues:
-        if name == self.og_tag and self.attrs:
-            new_attrs = dict(attrs)
-            new_attrs.update(self.attrs)
-            return new_attrs
-        return attrs
+        name_xformer and attrs_xformer both see the tag as it was
+        parsed; their results are applied together. xformer runs last
+        and sees the renamed tag with its new attributes.
+
+        :meta private:
+        """
+        new_name = self.name_xformer(tag) if self.name_xformer else tag.name
+        new_attrs = self.attrs_xformer(tag) if self.attrs_xformer else tag.attrs
+        tag.name = new_name
+        tag.attrs = new_attrs
+        if self.xformer is not None:
+            self.xformer(tag)

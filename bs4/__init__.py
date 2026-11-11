@@ -259,10 +259,9 @@ class BeautifulSoup(Tag):
          built. This is useful for subclassing Tag or NavigableString
          to modify default behavior.
 
-        :param replacer: A SoupReplacer. Every tag it matches will be
-         created under the replacement name, with the replacement
-         attributes, while the document is parsed, so there's no need
-         to search the tree and change those tags afterwards.
+        :param replacer: A SoupReplacer. Its transformers are applied
+         to each tag as the parser closes it, so there's no need to
+         search the tree and change those tags afterwards.
 
         :param kwargs: For backwards compatibility purposes, the
          constructor accepts certain keyword arguments used in
@@ -814,6 +813,15 @@ class BeautifulSoup(Tag):
         # print("Pop", tag.name)
         if self.tagStack:
             self.currentTag = self.tagStack[-1]
+        # The tag is complete now, and the bookkeeping above used the
+        # name from the document, so it's safe to transform it.
+        if self.replacer is not None and tag is not self:
+            self.replacer.transform(tag)
+            # An xformer may have removed or replaced the tag. The next
+            # element parsed has to link to whatever is now the last
+            # element in the tree, not to something that was taken out.
+            if self.currentTag is not None:
+                self._most_recent_element = self.currentTag._last_descendant()
         return self.currentTag
 
     def pushTag(self, tag: Tag) -> None:
@@ -1035,13 +1043,6 @@ class BeautifulSoup(Tag):
         ):
             return None
 
-        # The SoupStrainer above sees the name used in the document;
-        # the Tag is created with the replacement name and attributes,
-        # if any.
-        if self.replacer is not None:
-            attrs = self.replacer.replace_attrs(name, attrs)
-            name = self.replacer.replace(name)
-
         tag_class = self.element_classes.get(Tag, Tag)
         # Assume that this is either Tag or a subclass of Tag. If not,
         # the user brought type-unsafety upon themselves.
@@ -1077,10 +1078,6 @@ class BeautifulSoup(Tag):
         """
         # print("End tag: " + name)
         self.endData()
-        # The open Tag was created with the replacement name, so
-        # look for it under that name.
-        if self.replacer is not None:
-            name = self.replacer.replace(name)
         self._popToTag(name, nsprefix)
 
     def handle_data(self, data: str) -> None:
