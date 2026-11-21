@@ -688,6 +688,29 @@ class BeautifulSoup(Tag):
         self._most_recent_element = None
         self.pushTag(self)
 
+    def __iter__(self) -> Iterator[PageElement]:
+        """Iterate over every node in the document, one at a time.
+
+        Nodes come out in document order (depth-first, pre-order):
+        every Tag, NavigableString, Comment, Doctype, etc., but not
+        the BeautifulSoup object itself. Iterating a `Tag` still
+        gives only its direct children.
+
+        This is a generator, so no list of nodes is built. The parser
+        already links every node to the one parsed after it
+        (`PageElement.next_element`), so the walk follows that chain
+        from the first child until it runs out. The next node is
+        looked up before the current one is handed out, so the loop
+        body may change the current node, or replace it if it is a
+        string. Removing the current Tag ends the loop early, because
+        its children are cut off from the rest of the document.
+        """
+        node = self.contents[0] if self.contents else None
+        while node is not None:
+            successor = node.next_element
+            yield node
+            node = successor
+
     def new_tag(
         self,
         name: str,
